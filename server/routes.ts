@@ -16,11 +16,14 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
+  // <-- REPLACED: GET /api/events now logs full error stack
   app.get("/api/events", async (req, res) => {
     try {
       const events = await storage.getEvents();
       res.json(events);
-    } catch (error) {
+    } catch (error: any) {
+      // log full error + stack so we can debug the root cause
+      console.error("Full error in GET /api/events:", error && error.stack ? error.stack : error);
       res.status(500).json({ error: "Failed to fetch events" });
     }
   });

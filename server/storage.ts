@@ -10,11 +10,23 @@ import {
   type InsertTask,
 } from "@shared/schema";
 
+// ---- FIX: ensure DATABASE_URL is a real string ----
+const rawEnv = process.env.DATABASE_URL;
+
+if (!rawEnv) {
+  throw new Error("DATABASE_URL is missing. Check your .env file.");
+}
+
+// Always convert to a proper string for pg
+const connectionString = String(rawEnv);
+
+// Create Postgres pool safely
 const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString,
 });
 
 export const db = drizzle(pool);
+
 
 export interface IStorage {
   getEvents(): Promise<Event[]>;

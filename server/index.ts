@@ -1,3 +1,5 @@
+import dotenv from "dotenv";
+dotenv.config();
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
@@ -84,15 +86,41 @@ app.use((req, res, next) => {
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
+    // ALWAYS serve the app on the port specified in the environment variable PORT
+  // Prefer HOST env var; fall back to 127.0.0.1 to avoid 0.0.0.0 binding issues on Windows.
   const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    },
-    () => {
-      log(`serving on port ${port}`);
-    },
-  );
+  const host = process.env.HOST ?? "127.0.0.1";
+
+  const startServer = (h: string, p: number) => {
+    httpServer.listen({ port: p, host: h }, () => {
+      log(`serving on http://${h}:${p}`);
+    });
+  };
+
+  startServer(host, port);
+
+  httpServer.on("error", (err: any) => {
+    log(`httpServer error: ${err && err.code ? err.code : err}`, "server");
+    if (err && err.code === "EADDRINUSE") {
+      log(`Port ${port} already in use.`, "server");
+      process.exit(1);
+    } else if (err && err.code === "ENOTSUP") {
+      // ENOTSUP: try fallback to localhost:3000
+      const fallbackHost = "127.0.0.1";
+      const fallbackPort = 3000;
+      log(`ENOTSUP when binding ${err.address}:${err.port} — falling back to ${fallbackHost}:${fallbackPort}`, "server");
+      try {
+        httpServer.close?.();
+      } catch {}
+      startServer(fallbackHost, fallbackPort);
+      httpServer.on("error", (e: any) => {
+        log(`Fallback listen failed: ${e}`, "server");
+        process.exit(1);
+      });
+    } else {
+      log(`Unhandled server error: ${err}`, "server");
+      process.exit(1);
+    }
+  });
+
 })();
