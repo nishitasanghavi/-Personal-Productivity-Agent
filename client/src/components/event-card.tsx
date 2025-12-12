@@ -11,12 +11,22 @@ interface EventCardProps {
 }
 
 export function EventCard({ event, isDragging, onClick }: EventCardProps) {
+  // Prevent click from firing during drag
+  const handleClick = (e: React.MouseEvent) => {
+    if (isDragging) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    onClick?.();
+  };
+
   return (
     <Card
       className={`p-4 cursor-pointer transition-all duration-200 group ${
         isDragging ? "opacity-50 rotate-2 scale-105" : ""
       }`}
-      onClick={onClick}
+      onClick={handleClick}
       data-testid={`card-event-${event.id}`}
     >
       <div className="flex items-start gap-3">
@@ -65,4 +75,4 @@ export function EventCard({ event, isDragging, onClick }: EventCardProps) {
       </div>
     </Card>
   );
-}
+} 

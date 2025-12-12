@@ -16,13 +16,16 @@ export function KanbanColumn({ column, events, onEventClick, onEventDrop }: Kanb
   const [{ isOver, canDrop }, drop] = useDrop(() => ({
     accept: "event",
     drop: (item: { id: string }) => {
+      console.log('Dropping event:', item.id, 'into column:', column);
       onEventDrop(item.id, column);
+      return undefined; // Explicitly return undefined for drop result
     },
+    canDrop: () => true, // Explicitly allow drops
     collect: (monitor) => ({
       isOver: monitor.isOver(),
       canDrop: monitor.canDrop(),
     }),
-  }));
+  }), [column, onEventDrop]); // Add dependencies
 
   const isActive = isOver && canDrop;
 
@@ -47,11 +50,13 @@ export function KanbanColumn({ column, events, onEventClick, onEventDrop }: Kanb
       </div>
       
       <ScrollArea className="flex-1 p-2">
-        <div className="space-y-2">
+        <div className="space-y-2 min-h-[200px]">
           {events.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <Inbox className="h-8 w-8 text-muted-foreground/50 mb-2" />
-              <p className="text-xs text-muted-foreground">No events</p>
+              <p className="text-xs text-muted-foreground">
+                {isActive ? "Drop here" : "No events"}
+              </p>
             </div>
           ) : (
             events.map((event) => (

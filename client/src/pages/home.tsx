@@ -25,18 +25,22 @@ export default function Home() {
         case "today":
           newStartTime = new Date();
           newStartTime.setHours(9, 0, 0, 0);
+          needsAction = false;
           break;
         case "thisWeek":
           newStartTime = addDays(endOfDay(now), 1);
           newStartTime.setHours(9, 0, 0, 0);
+          needsAction = false;
           break;
         case "upcoming":
           newStartTime = addDays(endOfWeek(now, { weekStartsOn: 1 }), 1);
           newStartTime.setHours(9, 0, 0, 0);
+          needsAction = false;
           break;
         case "backlog":
           newStartTime = addDays(now, 30);
           newStartTime.setHours(9, 0, 0, 0);
+          needsAction = false;
           break;
         case "needsAction":
           needsAction = true;
@@ -52,13 +56,80 @@ export default function Home() {
         ? new Date(event.endTime).getTime() - new Date(event.startTime).getTime()
         : 3600000;
 
-      await apiRequest("PATCH", `/api/events/${eventId}`, {
+      const updatedEvent = {
         startTime: newStartTime.toISOString(),
         endTime: new Date(newStartTime.getTime() + duration).toISOString(),
         needsAction,
-      });
+      };
+
+      await apiRequest("PATCH", `/api/events/${eventId}`, updatedEvent);
+      
+      return { eventId, ...updatedEvent };
     },
-    onSuccess: () => {
+    // Optimistic update - update UI immediately before server responds
+    onMutate: async ({ eventId, column }) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["/api/events"] });
+
+      // Snapshot the previous value
+      const previousEvents = queryClient.getQueryData<Event[]>(["/api/events"]);
+
+      // Optimistically update to the new value
+      queryClient.setQueryData<Event[]>(["/api/events"], (old = []) => {
+        return old.map(event => {
+          if (event.id === eventId) {
+            const now = new Date();
+            let newStartTime: Date;
+            let needsAction = false;
+
+            switch (column) {
+              case "today":
+                newStartTime = new Date();
+                newStartTime.setHours(9, 0, 0, 0);
+                break;
+              case "thisWeek":
+                newStartTime = addDays(endOfDay(now), 1);
+                newStartTime.setHours(9, 0, 0, 0);
+                break;
+              case "upcoming":
+                newStartTime = addDays(endOfWeek(now, { weekStartsOn: 1 }), 1);
+                newStartTime.setHours(9, 0, 0, 0);
+                break;
+              case "backlog":
+                newStartTime = addDays(now, 30);
+                newStartTime.setHours(9, 0, 0, 0);
+                break;
+              case "needsAction":
+                needsAction = true;
+                newStartTime = new Date(event.startTime);
+                break;
+              default:
+                newStartTime = now;
+            }
+
+            const duration = new Date(event.endTime).getTime() - new Date(event.startTime).getTime();
+
+            return {
+              ...event,
+              startTime: newStartTime.toISOString(),
+              endTime: new Date(newStartTime.getTime() + duration).toISOString(),
+              needsAction,
+            };
+          }
+          return event;
+        });
+      });
+
+      return { previousEvents };
+    },
+    // If mutation fails, use the context returned from onMutate to roll back
+    onError: (err, variables, context) => {
+      if (context?.previousEvents) {
+        queryClient.setQueryData(["/api/events"], context.previousEvents);
+      }
+    },
+    // Always refetch after error or success to ensure we're in sync with server
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
     },
   });
@@ -69,6 +140,7 @@ export default function Home() {
   };
 
   const handleEventDrop = (eventId: string, column: KanbanColumn) => {
+    console.log('Dropping event:', eventId, 'to column:', column);
     updateEventMutation.mutate({ eventId, column });
   };
 
