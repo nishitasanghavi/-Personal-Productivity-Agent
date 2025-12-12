@@ -8,7 +8,7 @@ import {
   generateDailyPlan,
   generateEmailDraft,
   findFreeSlots,
-} from "./gemini";
+} from "./groq";
 import { startOfWeek, endOfWeek, startOfDay, endOfDay } from "date-fns";
 
 export async function registerRoutes(
